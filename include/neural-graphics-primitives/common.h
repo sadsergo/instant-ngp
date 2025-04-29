@@ -62,6 +62,7 @@ enum class ERenderMode : int {
 	Distortion,
 	Cost,
 	Slice,
+	Lambert,
 	NumRenderModes,
 	EncodingVis, // EncodingVis exists outside of the standard render modes
 };

@@ -69,6 +69,7 @@ def parse_args():
 
 	parser.add_argument("--sharpen", default=0, help="Set amount of sharpening applied to NeRF training images. Range 0.0 to 1.0.")
 
+	parser.add_argument("--cam_dir", default="1 1 1", help="Set camera dir and target", type=str)
 
 	return parser.parse_args()
 
@@ -137,12 +138,56 @@ if __name__ == "__main__":
 	testbed.exposure = args.exposure
 	testbed.shall_train = args.train if args.gui else True
 
-
 	testbed.nerf.render_with_lens_distortion = True
 
 	network_stem = os.path.splitext(os.path.basename(args.network))[0] if args.network else "base"
-	if testbed.mode == ngp.TestbedMode.Sdf:
-		setup_colored_sdf(testbed, args.scene)
+	# if testbed.mode == ngp.TestbedMode.Sdf:
+	# 	setup_colored_sdf(testbed, args.scene)
+
+	testbed.background_color = [1,1,1,1]
+	testbed.exposure = 1.000
+	testbed.up_dir = [0, 1, 0]
+	testbed.sun_dir = [1, 1, 1]
+	
+	cam_dir = np.array(list(map(float, args.cam_dir.split(" "))), dtype='float32')
+	# cam_dir[1] -= 0.6
+	look_at = cam_dir.copy()
+	look_at = -look_at
+	# cam_dir /= np.linalg.norm(cam_dir)
+	
+	# up = np.array([0, 1, 0])
+	
+	# right = np.cross(cam_dir, up)
+	# right /= np.linalg.norm(right)
+
+	# up = np.cross(cam_dir, right)
+	# up /= np.linalg.norm(up)
+
+	# testbed.camera_matrix[:, 0] = right
+	# testbed.camera_matrix[:, 1] = up
+	# testbed.camera_matrix[:, 2] = cam_dir
+	# testbed.camera_matrix[:, 3] = look_at
+
+	testbed.view_dir = cam_dir
+	# testbed.camera_matrix[:, 3] = -cam_dir
+
+	# print(args.cam_dir.split(" "))
+
+	# testbed.view_dir = [cam_dir[0], cam_dir[1], cam_dir[2]]
+	# testbed.camera_matrix[:, 3] = -cam_dir
+	# testbed.look_at = look_at
+	
+	# testbed.scale = 1.5
+	testbed.sdf.brdf.specular=0.000
+	testbed.sdf.brdf.metallic=0.000
+	testbed.sdf.brdf.roughness=1.00
+	testbed.fov = 60
+
+
+	# testbed.render_mode = ngp.Lambert
+
+	# col = list(testbed.background_color)
+	# testbed.sdf.brdf.ambientcolor = np.multiply(col,col)[0:3]
 
 	if args.near_distance >= 0.0:
 		print("NeRF training ray near_distance ", args.near_distance)
@@ -180,8 +225,12 @@ if __name__ == "__main__":
 
 	tqdm_last_update = 0
 	if n_steps > 0:
+		psnr = 0
+
 		with tqdm(desc="Training", total=n_steps, unit="steps") as t:
 			while testbed.frame():
+				psnr = mse2psnr(testbed.ema_loss)
+
 				if testbed.want_repl():
 					repl(testbed)
 				# What will happen when training is done?
@@ -202,6 +251,9 @@ if __name__ == "__main__":
 					t.set_postfix(loss=testbed.loss)
 					old_training_step = testbed.training_step
 					tqdm_last_update = now
+
+		with open('ingp_logs.txt', 'w') as f:
+			f.write(str(psnr))
 
 	if args.save_snapshot:
 		os.makedirs(os.path.dirname(args.save_snapshot), exist_ok=True)
